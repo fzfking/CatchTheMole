@@ -1,6 +1,12 @@
-﻿using Source.Codebase.GameEntities;
+﻿using System;
+using System.Net;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using Source.Codebase.GameEntities;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Source.Codebase.Architecture
@@ -8,6 +14,7 @@ namespace Source.Codebase.Architecture
     public class Game : MonoBehaviour, ICoroutineRunner
     {
         private const string MapSizeKey = "MapSize";
+        private const string UriToLoad = "Uri";
         [SerializeField] private Hole HolePrefab;
         [SerializeField] private ScoreTracker ScoreTracker;
         [SerializeField] private Button MapSizeIncreaseButton;
@@ -30,6 +37,21 @@ namespace Source.Codebase.Architecture
             InstallGameMap(_holesGridContainer);
             InstallScoreSystem();
             InstallUI();
+
+            var statistics = new Statistics(this);
+            statistics.AnswerReceived += GoToWebViewScene;
+            statistics.CollectData();
+        }
+
+        private void GoToWebViewScene(string uri)
+        {
+            var value = uri.Split(':')[1].Replace("}", "").Replace("\"", "");
+            if (!string.IsNullOrWhiteSpace(value) && Uri.IsWellFormedUriString(value, UriKind.Absolute))
+            {
+                PlayerPrefs.SetString("UriToLoad", value);
+                PlayerPrefs.Save();
+                SceneManager.LoadScene(1);
+            }
         }
 
         private void InstallGameMap(Transform holesGridContainer)
@@ -59,7 +81,6 @@ namespace Source.Codebase.Architecture
             ResetMapSizeButton.onClick.AddListener(OnUserClickedResetMap);
         }
 
-        
 
         private void UninstallUI()
         {
@@ -77,7 +98,7 @@ namespace Source.Codebase.Architecture
                 InstallGameMap(_holesGridContainer);
             }
         }
-        
+
         private void OnUserClickedResetMap()
         {
             _currentGridSize = StartingGridSize;
@@ -89,6 +110,7 @@ namespace Source.Codebase.Architecture
         {
             _scoreHolder.Add(1);
         }
+
         private void OnAnyMoleEscaped()
         {
             _scoreHolder.TrySubtract(1);
