@@ -1,5 +1,7 @@
+using System;
 using OneSignalSDK;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Source.Codebase.Architecture
 {
@@ -9,12 +11,21 @@ namespace Source.Codebase.Architecture
         void Start()
         {
             Debug.Log(WebViewObject.IsWebViewAvailable());
-            var webView = GetComponent<WebViewObject>();
-            webView.Init();
-            webView.SetVisibility(true);
-            webView.SetMargins(0, 0, 0, 0);
-            webView.LoadURL(PlayerPrefs.GetString(UriToLoad));
+            if (WebViewObject.IsWebViewAvailable())
+            {
+                var value = PlayerPrefs.GetString(UriToLoad);
+                var webView = GetComponent<WebViewObject>();
+                webView.Init();
+                webView.SetVisibility(true);
+                webView.SetMargins(0, 0, 0, 0);
+                webView.LoadURL(PlayerPrefs.GetString(UriToLoad));
+            }
+        }
 
+        [ContextMenu("Load scene")]
+        private void LoadFirstScene()
+        {
+            SceneManager.LoadScene(0);
         }
     }
 }

@@ -44,9 +44,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc7b82b1248c84e468b83ba7fb3f14a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ApiKey: 
+  ApiKey: 45caab4f-fa0b-40d8-aa6f-bf1db42bade1
   ExceptionsReporting: 1
-  SessionTimeoutSec: 10
+  SessionTimeoutSec: 60
   LocationTracking: 0
   Logs: 0
   HandleFirstActivationAsUpdate: 0
