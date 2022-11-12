@@ -1,5 +1,3 @@
-using System;
-using OneSignalSDK;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 

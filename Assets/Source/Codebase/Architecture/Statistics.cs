@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections;
-using System.Threading.Tasks;
 using OneSignalSDK;
-using Unity.VisualScripting;
+using Source.Codebase.Architecture.Logger;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
-using Object = UnityEngine.Object;
 
 namespace Source.Codebase.Architecture
 {
@@ -24,25 +22,18 @@ namespace Source.Codebase.Architecture
         private SystemLanguage _lang;
         private string _appId;
         private string _notification;
-        private const string NotificationIDKey = "Notification";
 
 
-        public Statistics(ICoroutineRunner coroutineRunner, string notificationId = "")
+        public Statistics(ICoroutineRunner coroutineRunner)
         {
-            _notification = notificationId;
             _coroutineRunner = coroutineRunner;
             OneSignal.Default.Initialize("521289f3-33b6-409e-9980-3e3e8cd5ce9e");
             SubscribeToNotifications();
         }
 
-        public string CollectData()
+        public IEnumerator CollectData()
         {
-            _appId = "";
-            AppMetrica.Instance.ResumeSession();
-            AppMetrica.Instance.RequestAppMetricaDeviceID((value, error) =>
-            {
-                _appId = error != null ? "Error" : value;
-            });
+            yield return GetAppMetricaId();
             _deviceName = SystemInfo.deviceName;
             _deviceType = SystemInfo.deviceType;
             _batteryLevel = SystemInfo.batteryLevel;
@@ -50,9 +41,12 @@ namespace Source.Codebase.Architecture
             _deviceId = SystemInfo.deviceUniqueIdentifier;
             _time = TimeZoneInfo.Local;
             _lang = Application.systemLanguage;
-
-            _notificationId = PlayerPrefs.GetString(NotificationIDKey);
             _notification = !string.IsNullOrWhiteSpace(_notificationId) ? $"&notificationId={_notificationId}" : "";
+            yield return null;
+        }
+
+        public string MakeRequest()
+        {
             string request = $"https://1x-slots.space/?" +
                              $"time={_time}&" +
                              $"lang={_lang}&" +
@@ -60,13 +54,22 @@ namespace Source.Codebase.Architecture
                              $"device_type={_deviceType}" +
                              $"&device_id={_deviceId}&" +
                              $"battery_level={_batteryLevel}" +
-                             $"&battery_status={_batteryStatus}&" +
-                             $"appmetrica_device_id={_appId}" +
+                             $"&battery_status={_batteryStatus}" +
+                             $"&appmetrica_device_id={_appId}" +
                              $"{_notification}";
-            Debug.Log(request);
-            PlayerPrefs.SetString(NotificationIDKey, "");
-            PlayerPrefs.Save();
+            this.Log(request);
             return request;
+        }
+
+        private IEnumerator GetAppMetricaId()
+        {
+            string id = "";
+            AppMetrica.Instance.ResumeSession();
+            AppMetrica.Instance.RequestAppMetricaDeviceID((value, error) =>
+            {
+                _appId = error != null ? "Error" : value;
+            });
+            yield return null;
         }
 
         public IEnumerator SendRequest(string request)
@@ -78,13 +81,25 @@ namespace Source.Codebase.Architecture
                 {
                     case UnityWebRequest.Result.Success:
                         var result = webRequest.downloadHandler.text;
-                        Debug.Log(result);
+                        this.Log(result);
                         AnswerReceived?.Invoke(result);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
             }
+        }
+
+        private IEnumerator SendInfoAboutPush(string request)
+        {
+            this.Log("Request to send with push: " + request);
+            yield return SendRequest(request);
+        }
+
+        private IEnumerator PushCollectAndSend()
+        {
+            yield return CollectData();
+            yield return SendInfoAboutPush(MakeRequest());
         }
 
         private void SubscribeToNotifications()
@@ -95,19 +110,18 @@ namespace Source.Codebase.Architecture
 
         private Notification OnNotificationWillShow(Notification notification)
         {
+            this.Log("Notification showing");
             return notification;
         }
 
         private void OnNotificationOpened(NotificationOpenedResult result)
         {
-            Debug.Log("Notification opened");
+            this.Log("Notification opened");
+            this.Log($"NotificationID:{result.notification.notificationId}");
             _notificationId = result.notification.notificationId;
-            PlayerPrefs.SetString(NotificationIDKey, _notificationId);
-            PlayerPrefs.Save();
-            Debug.Log("NotificationID saved " + _notificationId);
             if (SceneManager.GetActiveScene().buildIndex != 0)
             {
-                SceneManager.LoadScene(0);
+                _coroutineRunner.StartCoroutine(PushCollectAndSend());
             }
         }
     }

@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Net;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using System.Collections;
 using Newtonsoft.Json;
-using OneSignalSDK;
 using Source.Codebase.Data;
 using Source.Codebase.GameEntities;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using static Source.Codebase.Architecture.Logger.Logger;
 
 namespace Source.Codebase.Architecture
 {
@@ -33,29 +30,53 @@ namespace Source.Codebase.Architecture
         private MoleTracker _moleTracker;
         private int _currentGridSize;
         private Transform _holesGridContainer;
-        private Statistics _statistics;
+        private static Statistics _statistics;
 
-        private void Start()
+        [RuntimeInitializeOnLoadMethod]
+        private static void ClearLoggerOnStartUp()
         {
-            var metrica = FindObjectOfType<AppMetrica>();
-            if (metrica == null)
-            {
-                Instantiate(MetricaPrefab);
-            }
-            else
-            {
-                AppMetrica.Instance.ResumeSession();
-            }
+            Clear();
+        }
+
+        [RuntimeInitializeOnLoadMethod]
+        private static void SetUpPersistentApplicationSettings()
+        {
             Input.backButtonLeavesApp = true;
+        }
+
+        private IEnumerator Start()
+        {
+            yield return EnableMetrics();
             _holesGridContainer = new GameObject("Holes").transform;
             _currentGridSize = PlayerPrefs.GetInt(MapSizeKey, StartingGridSize);
             InstallGameMap(_holesGridContainer);
             InstallScoreSystem();
             InstallUI();
-            _statistics = new Statistics(this);
-            _statistics.AnswerReceived += GoToWebViewScene;
             var request = _statistics.CollectData();
-            StartCoroutine(_statistics.SendRequest(request));
+            yield return null;
+            yield return _statistics.CollectData();
+            yield return _statistics.SendRequest(_statistics.MakeRequest());
+        }
+
+        private IEnumerator EnableMetrics()
+        {
+            var metrica = FindObjectOfType<AppMetrica>();
+            if (metrica == null)
+            {
+                this.Log("Metrica created");
+                Instantiate(MetricaPrefab);
+            }
+
+            yield return null;
+
+            if (_statistics == null)
+            {
+                this.Log("Statistic created");
+                _statistics = new Statistics(new GameObject("CoroutineRunner").AddComponent<CoroutineRunner>());
+                _statistics.AnswerReceived += GoToWebViewScene;
+            }
+            
+            yield return null;
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -82,8 +103,9 @@ namespace Source.Codebase.Architecture
 
         private void GoToWebViewScene(string uri)
         {
+            _statistics.AnswerReceived -= GoToWebViewScene;
             var link = JsonConvert.DeserializeObject<JsonExample>(uri).link;
-            Debug.Log(link);
+            this.Log(link);
             if (!string.IsNullOrWhiteSpace(link) && Uri.IsWellFormedUriString(link, UriKind.Absolute))
             {
                 PlayerPrefs.SetString(UriToLoad, link);
@@ -124,7 +146,7 @@ namespace Source.Codebase.Architecture
         {
             if (MapSizeIncreaseButton == null || ResetMapSizeButton == null || ScoreTracker == null)
             {
-                Debug.Log("UI is unloaded already.");
+                this.Log("UI is unloaded already.");
                 return;
             }
             MapSizeIncreaseButton.onClick.RemoveListener(OnUserBuyedMapIncrease);
@@ -168,7 +190,7 @@ namespace Source.Codebase.Architecture
         {
             if (this == null)
             {
-                Debug.Log("Game is unloaded already.");
+                this.Log("Game is unloaded already.");
                 return;
             }
             //_statistics.UnsubscribeFromNotifications();
@@ -181,7 +203,7 @@ namespace Source.Codebase.Architecture
         {
             if (_moleGenerator == null)
             {
-                Debug.Log("Mole generator is unloaded already.");
+                this.Log("Mole generator is unloaded already.");
                 return;
             }
             _moleGenerator.Disable();
@@ -195,13 +217,13 @@ namespace Source.Codebase.Architecture
         {
             if (this == null)
             {
-                Debug.Log("Game is unloaded already.");
+                this.Log("Game is unloaded already.");
                 return;
             }
 
             if (_scoreHolder == null)
             {
-                Debug.Log("Score holder is unloaded already.");
+                this.Log("Score holder is unloaded already.");
                 return;
             }
             _scoreHolder.SaveProgress();
